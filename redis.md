@@ -257,3 +257,25 @@ cout<<r.as_string()<<endl;
 ```
 
 `redis`是网络操作，不会立刻拿结果，必须等`redis`服务器恢复之后自动通过回调函数把结果给你
+
+9.获取`value`
+
+`cpp_redis::reply`是`cpp_redis`返回结果的类型，专门存`cpp_redis`返回的数据
+
+```c
+bool checkCode(const string& email, const string& inputCode) {
+   std::string s1;
+    // ========= 固定 get 模板 =========
+    m_redis.get(key, [&](cpp_redis::reply& reply) {
+        if (reply.is_string()) {
+            s1 = reply.as_string();
+        }
+    });
+
+    // 必须提交！
+    m_redis.sync_commit();
+
+}
+
+```
+
