@@ -8,11 +8,8 @@
 size_t mail_payload(void* ptr, size_t size, size_t nmemb, void* userp) {
     std::string* data = (std::string*)userp;
     size_t len = data->size();
-    if (len <= 0){
-        return 0;
-    }
     memcpy(ptr, data->c_str(), len);
-    data->clear();  
+    data->clear();
     return len;
 }
 class verifycode {
