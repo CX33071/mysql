@@ -71,7 +71,8 @@ class verifycode {
         curl_easy_setopt(curl, CURLOPT_URL, "smtps://smtp.qq.com:465");
         curl_easy_setopt(curl, CURLOPT_USERNAME, serveraccount.c_str());
         curl_easy_setopt(curl, CURLOPT_PASSWORD, "miojajsaujebdbch");
-        // curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, "AUTH=LOGIN");
+        // curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, "AUTH=PLAIN");
+        curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, "AUTH=LOGIN");
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
         curl_easy_setopt(curl, CURLOPT_MAIL_FROM, from.c_str());
