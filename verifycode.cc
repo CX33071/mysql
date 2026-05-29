@@ -5,6 +5,7 @@
 #include <ctime>
 #include <iostream>
 #include <string>
+#include <future>
 size_t mail_payload(void* ptr, size_t size, size_t nmemb, void* userp) {
     std::string* data = (std::string*)userp;
     size_t len = data->size();
@@ -31,6 +32,69 @@ class verifycode {
     void addredis(const std::string& code, const std::string& account) {
         redis_.setex(account, 300, code);
         redis_.sync_commit();
+    }
+    void signup(){
+        std::string account;
+        std::string key;
+        std::cin >> account;
+        auto fut=redis_.exists({account});
+        redis_.sync_commit();
+        int exists = fut.get().as_integer();
+        while(exists){
+            std::cout << "该账号已被使用，请重新输入帐号" << std::endl;
+            std::cin >> account;
+            auto fut = redis_.exists({account});
+            redis_.sync_commit();
+            exists = fut.get().as_integer();
+        }
+        std::cin >> key;
+        auto fut = redis_.setnx(account, key);
+        std::cout << "注册成功！";
+    }
+    void signin(){
+        std::cout << "请选择：1验证码登录/2密码登录" << std::endl;
+        int options;
+        std::cin >> options;
+        if(options==1){
+            std::cout << "请输入qq邮箱:";
+            std::string account;
+            std::cin >> account;
+            
+        } else {
+            std::cout << "请输入账号:";
+            std::string account;
+            std::cin >> account;
+            std::string key;
+            std::cout << "请输入密码:";
+            std::cin >> key;
+            std::string truekey;
+            redis_.get(account, [&truekey](cpp_redis::reply& r) {
+                if (r.is_string()) {
+                    truekey = r.as_string();
+                }
+            });
+            while(truekey!=key){
+                std::cout << "密码错误，请重新输入密码：" << std::endl;
+                std::cin >> key;
+            }
+            std::cout << "登录成功！";
+        }
+    }
+    void destory(const std::string&account){
+        std::string truekey;
+        redis_.get(account, [&truekey](cpp_redis::reply& r) {
+            if (r.is_string()) {
+                truekey = r.as_string();
+            }
+        });
+        std::string key;
+        std::cin >> key;
+        while (truekey != key) {
+            std::cout << "密码错误，请重新输入密码:";
+            std::cin >> key;
+        }
+        redis_.del({account});
+        std::cout << "注销成功！" << std::endl;
     }
     void checkcode(const std::string& inputcode, const std::string& account) {
         std::string truecode;
