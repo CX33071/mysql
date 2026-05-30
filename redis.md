@@ -203,7 +203,7 @@ redis.sync_commit();
 redis.set("name","zhangfei");
 redis.get("name",callback);
 redis.del({"name"});
-redis.exists("name");
+redis.exists({"name"});
 redis.expire("name",60);
 redis.incr("count");
 ```
