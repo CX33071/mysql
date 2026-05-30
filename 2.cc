@@ -68,10 +68,10 @@ class verifycode {
     }
 
     bool verify(const std::string&account,const std::string&inputcode){
-        auto fut = redis_.get(account);
+        auto fut = redis_.get(account+"1");
         redis_.sync_commit();
         if(fut.get().as_string()==inputcode){
-            redis_.del({account});
+            redis_.del({account+"1"});
             redis_.sync_commit();
             return true;
         }
@@ -95,7 +95,7 @@ class verifycode {
     //         std::cout << "请输入密码:";
     //         std::cin >> key;
     //         std::string truekey;
-    //         auto fut = redis_.get({account});
+    //         auto fut = redis_.get(account);
     //         redis_.sync_commit();
     //         truekey = fut.get().as_string();
     //         while (truekey != key) {
@@ -120,11 +120,12 @@ class verifycode {
         std::cin >> key;
         auto fut = redis_.get(account);
         redis_.sync_commit();
-        if(!fut.get().is_string()){
+        auto reply = fut.get();
+        if (!reply.is_string()) {
             std::cout << "该账号不存在，请先注册" << std::endl;
             return;
         }
-        if(fut.get().as_string()==key){
+        if(reply.as_string()==key){
             std::cout << "登录成功" << std::endl;
         }else{
             std::cout << "密码错误" << std::endl;
@@ -137,6 +138,7 @@ class verifycode {
         redis_.sync_commit();
         if (fut.get().as_integer() == 0) {
             std::cout << "该账号不存在，请先注册" << std::endl;
+            return ;
         }
         addredis(server, account);
         std::cout << "请输入验证码:";
@@ -145,7 +147,6 @@ class verifycode {
         if(verify(account,code)){
             std::cout << "登录成功" << std::endl;
         }else{
-            std:
                 std::cout << "验证码错误" << std::endl;
             }
     }
@@ -182,23 +183,24 @@ class verifycode {
         std::cin >> account;
         auto fut = redis_.get(account);
         redis_.sync_commit();
-        if(!fut.get().is_string()){
+        auto reply = fut.get();
+        if(!reply.is_string()){
             std::cout << "该账号不存在" << std::endl;
             return;
         }
         std::cout << "请输入密码:";
         std::cin >> key;
-        if(fut.get().as_string()!=key){
+        if(reply.as_string()!=key){
             std::cout << "密码错误" << std::endl;
             return;
         }
-        redis_.del({account});
+        redis_.del({account,account+"1"});
         redis_.sync_commit();
         std::cout << "账号注销成功" << std::endl;
     }
     // void destory(std::string account, const std::string& server) {
     //     std::string truekey;
-    //     auto fut = redis_.get({account});
+    //     auto fut = redis_.get(account);
     //     redis_.sync_commit();
     //     truekey = fut.get().as_string();
     //     std::string key;
@@ -245,13 +247,10 @@ class verifycode {
                            "From: " +
                            serveraccount +
                            "\r\n"
-                           "Subject: "+
-                           subject+
+                           "Subject: " +
+                           subject +
                            "\r\n\r\n"+
-                           "您的验证码是："+
-                           code +
-                           "\r\n"
-                           "5分钟内有效\r\n";
+                           code;
         struct curl_slist* recipients = NULL;
         recipients = curl_slist_append(recipients, to.c_str());
         curl_easy_setopt(curl, CURLOPT_URL, "smtps://smtp.qq.com:465");
