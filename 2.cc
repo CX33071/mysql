@@ -29,12 +29,16 @@ class verifycode {
         }
         return code;
     }
-    void addredis(const std::string& code, const std::string& account) {
-        std::string account1 = account + "1";
-        redis_.setex(account1, 300, code);
+    void addredis(const std::string&server,const std::string&account){
+        std::string s = code();
+        redis_.setex(account+"1", 300, s);
         redis_.sync_commit();
+        sendcom(server, account, "验证码",
+                "您的验证码是: " + s + " 5分钟内有效");
     }
-    void signup(std::string& account, std::string& key) {
+
+    void signup() {
+        std::string account, key;
         std::cout << "请输入您的qq邮箱:";
         std::cin >> account;
         auto fut = redis_.exists({account});
@@ -58,85 +62,181 @@ class verifycode {
             std::cout << "请再次输入密码:";
             std::cin >> key1;
         }
-        redis_.setnx(account, key);
+        redis_.set(account, key);
+        redis_.sync_commit();
         std::cout << "注册成功！";
     }
-    void signin(const std::string server) {
-        std::cout << "请选择：1验证码登录/2密码登录" << std::endl;
-        int options;
-        std::cin >> options;
-        if (options == 1) {
-            std::cout << "请输入您的qq邮箱帐号:";
-            std::string qqaccount;
-            std::cin >> qqaccount;
-            verifycodesignin(server, qqaccount);
-            std::cout << "登录成功";
-        } else {
-            std::cout << "请输入账号:";
-            std::string account;
-            std::cin >> account;
-            std::string key;
-            std::cout << "请输入密码:";
-            std::cin >> key;
-            std::string truekey;
-            auto fut = redis_.get({account});
+
+    bool verify(const std::string&account,const std::string&inputcode){
+        auto fut = redis_.get(account);
+        redis_.sync_commit();
+        if(fut.get().as_string()==inputcode){
+            redis_.del({account});
             redis_.sync_commit();
-            truekey = fut.get().as_string();
-            while (truekey != key) {
-                std::cout << "密码错误，请选择1忘记密码/2重新输入密码："
-                          << std::endl;
-                int option;
-                std::cin >> option;
-                if (option == 1) {
-                    getselfcode(server);
-                }
-                std::cout << "请输入密码:";
-                std::cin >> key;
-            }
-            std::cout << "登录成功！";
+            return true;
+        }
+        return false;
+    }
+    // void signin(const std::string server) {
+    //     std::cout << "请选择：1验证码登录/2密码登录" << std::endl;
+    //     int options;
+    //     std::cin >> options;
+    //     if (options == 1) {
+    //         std::cout << "请输入您的qq邮箱帐号:";
+    //         std::string qqaccount;
+    //         std::cin >> qqaccount;
+    //         verifycodesignin(server, qqaccount);
+    //         std::cout << "登录成功";
+    //     } else {
+    //         std::cout << "请输入账号:";
+    //         std::string account;
+    //         std::cin >> account;
+    //         std::string key;
+    //         std::cout << "请输入密码:";
+    //         std::cin >> key;
+    //         std::string truekey;
+    //         auto fut = redis_.get({account});
+    //         redis_.sync_commit();
+    //         truekey = fut.get().as_string();
+    //         while (truekey != key) {
+    //             std::cout << "密码错误，请选择1忘记密码/2重新输入密码："
+    //                       << std::endl;
+    //             int option;
+    //             std::cin >> option;
+    //             if (option == 1) {
+    //                 getselfcode(server);
+    //             }
+    //             std::cout << "请输入密码:";
+    //             std::cin >> key;
+    //         }
+    //         std::cout << "登录成功！";
+    //     }
+    // }
+    void loginwithkey(){
+        std::string account, key;
+        std::cout << "请输入qq邮箱账号:";
+        std::cin >> account;
+        std::cout << "请输入密码:";
+        std::cin >> key;
+        auto fut = redis_.get(account);
+        redis_.sync_commit();
+        if(!fut.get().is_string()){
+            std::cout << "该账号不存在，请先注册" << std::endl;
+            return;
+        }
+        if(fut.get().as_string()==key){
+            std::cout << "登录成功" << std::endl;
+        }else{
+            std::cout << "密码错误" << std::endl;
         }
     }
-    void destory(std::string account, const std::string& server) {
-        std::string truekey;
-        auto fut = redis_.get({account});
+    void loginwithcode(const std::string server) {    std::string account;
+        std::cout << "请输入您的qq邮箱账号:";
+        std::cin >> account;
+        auto fut = redis_.exists({account});
         redis_.sync_commit();
-        truekey = fut.get().as_string();
-        std::string key;
-        std::cout << "注销需要密码，请选择：密码注销y/忘记密码n ";
-        char c;
-        std::cin >> c;
-        if (c == 'n') {
-            getselfcode(server);
+        if (fut.get().as_integer() == 0) {
+            std::cout << "该账号不存在，请先注册" << std::endl;
+        }
+        addredis(server, account);
+        std::cout << "请输入验证码:";
+        std::string code;
+        std::cin >> code;
+        if(verify(account,code)){
+            std::cout << "登录成功" << std::endl;
+        }else{
+            std:
+                std::cout << "验证码错误" << std::endl;
+            }
+    }
+    void forgetkey(const std::string& server) { 
+        std::string account;
+        std::cout << "请输入您的qq邮箱账号:";
+        std::cin >> account;
+        auto fut = redis_.exists({account});
+        redis_.sync_commit();
+        if(fut.get().as_integer()==0){
+            std::cout << "该账号并未注册" << std::endl;
+            return;
+        }
+        addredis(server, account);
+        std::cout << "请输入收到的验证码: ";
+        std::string code;
+        std::cin >> code;
+        if(!verify(account,code)){
+            std::cout << "验证码错误" << std::endl;
+            return;
+        }else{
+            std::cout << "验证码正确" << std::endl;
+        }
+        auto fut1 = redis_.get(account);
+        redis_.sync_commit();
+        std::string truecode = fut1.get().as_string();
+
+        sendcom(server, account, "密码", "您的密码是: "+ truecode);
+        std::cout << "密码已经发到您的邮箱"<< std::endl;
+    }
+    void destroy() { 
+        std::string account, key;
+        std::cout << "请输入您的账号:";
+        std::cin >> account;
+        auto fut = redis_.get(account);
+        redis_.sync_commit();
+        if(!fut.get().is_string()){
+            std::cout << "该账号不存在" << std::endl;
+            return;
         }
         std::cout << "请输入密码:";
         std::cin >> key;
-        while (truekey != key) {
-            std::cout << "密码错误，请重新输入密码:";
-            std::cin >> key;
+        if(fut.get().as_string()!=key){
+            std::cout << "密码错误" << std::endl;
+            return;
         }
         redis_.del({account});
-        std::cout << "注销成功！" << std::endl;
-    }
-    void getselfcode(const std::string& server) {
-        std::cout << "请输入您的qq邮箱帐号:";
-        std::string qqaccount;
-        std::cin >> qqaccount;
-        verifycodesignin(server, qqaccount);
-        std::string truecode;
-        auto fut = redis_.get(qqaccount);
         redis_.sync_commit();
-        truecode = fut.get().as_string();
-        if (truecode.empty()) {
-            std::cout << "密码获取失败";
-        }
-        std::string a = "***";
-        sendcom(server, qqaccount, a, truecode);
-        std::cout << "已经发送原密码到您邮箱";
+        std::cout << "账号注销成功" << std::endl;
     }
+    // void destory(std::string account, const std::string& server) {
+    //     std::string truekey;
+    //     auto fut = redis_.get({account});
+    //     redis_.sync_commit();
+    //     truekey = fut.get().as_string();
+    //     std::string key;
+    //     std::cout << "注销需要密码，请选择：密码注销y/忘记密码n ";
+    //     char c;
+    //     std::cin >> c;
+    //     if (c == 'n') {
+    //         getselfcode(server);
+    //     }
+    //     std::cout << "请输入密码:";
+    //     std::cin >> key;
+    //     while (truekey != key) {
+    //         std::cout << "密码错误，请重新输入密码:";
+    //         std::cin >> key;
+    //     }
+    //     redis_.del({account});
+    //     std::cout << "注销成功！" << std::endl;
+    // }
+    // void getselfcode(const std::string& server) {
+    //     std::cout << "请输入您的qq邮箱帐号:";
+    //     std::string qqaccount;
+    //     std::cin >> qqaccount;
+    //     verifycodesignin(server, qqaccount);
+    //     std::string truecode;
+    //     auto fut = redis_.get(qqaccount);
+    //     redis_.sync_commit();
+    //     truecode = fut.get().as_string();
+    //     if (truecode.empty()) {
+    //         std::cout << "密码获取失败";
+    //     }
+    //     std::string a = "***";
+    //     sendcom(server, qqaccount, a, truecode);
+    //     std::cout << "已经发送原密码到您邮箱";
+    // }
     void sendcom(const std::string& serveraccount,
                  const std::string& clientaccount,
                  const std::string& subject,
-                 std::string s) {
+                 const std::string&code) {
         CURL* curl = curl_easy_init();
         std::string from = "<" + serveraccount + ">";
         std::string to = "<" + clientaccount + ">";
@@ -145,23 +245,13 @@ class verifycode {
                            "From: " +
                            serveraccount +
                            "\r\n"
-                           "Subject: 验证码\r\n"
-                           "\r\n"
-                           "您的验证码是：" +
+                           "Subject: "+
+                           subject+
+                           "\r\n\r\n"+
+                           "您的验证码是："+
                            code +
                            "\r\n"
                            "5分钟内有效\r\n";
-        if (!s.empty()) {
-            mail = "To: " + clientaccount +
-                   "\r\n"
-                   "From: " +
-                   serveraccount +
-                   "\r\n"
-                   "Subject: 密码\r\n"
-                   "\r\n"
-                   "您的帐号密码是：" +
-                   s + "\r\n";
-        }
         struct curl_slist* recipients = NULL;
         recipients = curl_slist_append(recipients, to.c_str());
         curl_easy_setopt(curl, CURLOPT_URL, "smtps://smtp.qq.com:465");
@@ -186,47 +276,47 @@ class verifycode {
         curl_slist_free_all(recipients);
         curl_easy_cleanup(curl);
     }
-    void verifycodesignin(const std::string& server,
-                          const std::string& qqaccount) {
-        std::string s1 = code();
-        addredis(s1, qqaccount);
-        sendcom(server, qqaccount, s1, "");
-        std::cout << "请输入验证码:";
-        std::string inputcode;
-        std::cin >> inputcode;
-        std::string truecode;
-        std::string account1;
-        account1 = qqaccount + "1";
-        auto fut = redis_.get({account1});
-        redis_.sync_commit();
-        truecode = fut.get().as_string();
-        redis_.sync_commit();
-        while (inputcode != truecode) {
-            redis_.del({account1});
-            std::cout << "验证码错误，已为您重新发送验证码";
-            std::string s = code();
-            redis_.setex(account1, 300, s);
-            redis_.sync_commit();
-            sendcom(server, qqaccount, s, "");
-            auto fut = redis_.get({account1});
-            redis_.sync_commit();
-            truecode = fut.get().as_string();
-            std::cout << "请输入新的验证码:";
-            std::cin >> inputcode;
-        }
-        std::cout << "验证码正确" << std::endl;
-    }
 };
 
 int main() {
     curl_global_init(CURL_GLOBAL_ALL);
-    std::string account;
-    std::string key;
-    std::string server = "3541053286@qq.com";
     verifycode c;
-    // c.signup(account,key);
-    c.signin(server);
-    c.destory(account, server);
-    curl_global_cleanup();
-    return 0;
+    std::string server = "3541053286@qq.com";  
+
+    int choice;
+    while (1) {
+        std::cout << "账号管理";
+        std::cout << "1. 注册\n";
+        std::cout << "2. 密码登录\n";
+        std::cout << "3. 验证码登录\n";
+        std::cout << "4. 忘记密码（发送原密码到邮箱）\n";
+        std::cout << "5. 注销账号\n";
+        std::cout << "0. 退出\n";
+        std::cout << "请选择: ";
+        std::cin >> choice;
+
+        switch (choice) {
+            case 1:
+                c.signup();
+                break;
+            case 2:
+                c.loginwithkey();
+                break;
+            case 3:
+                c.loginwithcode(server);
+                break;
+            case 4:
+                c.forgetkey(server);
+                break;
+            case 5:
+                c.destroy();
+                break;
+            case 0:
+                std::cout << "再见" << std::endl;
+                curl_global_cleanup();
+                return 0;
+            default:
+                std::cout << "选择错误" << std::endl;
+        }
+    }
 }
