@@ -3,9 +3,23 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <termios.h>
 #include <future>
 #include <iostream>
+#include <unistd.h>
 #include <string>
+#include <algorithm>
+std::string inkey(){
+    struct termios oldt, newt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    std::string key;
+    std::cin >> key;
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return key;
+}
 size_t mail_payload(void* ptr, size_t size, size_t nmemb, void* userp) {
     std::string* data = (std::string*)userp;
     size_t len = data->size();
@@ -20,6 +34,37 @@ class verifycode{
          verifycode() {
         srand(time(NULL));
         redis_.connect("127.0.0.1", 6379);
+    }
+    std::string generatesalt() {
+        std::string salt;
+        for (int i = 0; i < 10; i++) {
+            salt += ('0' + rand() % 10);
+        }
+        return salt;
+    }
+    std::string sha(std::string input) {
+        std::reverse(input.begin(), input.end());
+        return input;
+    }
+    std::string screctkey(std::string key){
+        std::string salt = generatesalt();
+        std::string hash = sha(salt + key);
+        return salt + ":" + hash;
+    }
+    std::string getstartkey(std::string hashkey){
+        size_t pos = hashkey.find(':');
+        std::string salt = hashkey.substr(0, pos);
+        std::string hash = hashkey.substr(pos + 1);
+        std::reverse(hash.begin(), hash.end());
+        std::string startkey = hash.substr(10);
+        return startkey;
+    }
+    bool checkkey(const std::string&inputkey,const std::string&getkeyvalue){
+        size_t pos = getkeyvalue.find(':');
+        std::string salt = getkeyvalue.substr(0,pos);
+        std::string hash = getkeyvalue.substr(pos + 1);
+        std::string inputhash = sha(salt + inputkey);
+        return inputhash == hash;
     }
     std::string code() {
         std::string code;
@@ -50,17 +95,21 @@ class verifycode{
             exists = fut.get().as_integer();
         }
         std::cout << "请设置您的密码:";
-        std::cin >> key;
+        key=inkey();
+        std::cout << std::endl;
         std::cout << "请再次输入密码:";
-        std::string key1;
-        std::cin >> key1;
+        std::string key1 = inkey();
+        std::cout << std::endl;
         while (key != key1) {
             std::cout << "两次密码设置不一致,请再次设置您的密码:";
-            std::cin >> key;
+            key = inkey();
+            std::cout << std::endl;
             std::cout << "请再次输入密码:";
-            std::cin >> key1;
+            key1 = inkey();
+            std::cout << std::endl;
         }
-        redis_.set(account, key);
+        std::string finalkey = screctkey(key);
+        redis_.set(account, finalkey);
         redis_.sync_commit();
         std::cout << "注册成功！";
     }
@@ -86,20 +135,24 @@ class verifycode{
             return;
         }
         std::cout << "请输入密码:";
-        std::cin >> key;
-        while(reply.as_string()!=key){
+        key = inkey();
+        std::cout << std::endl;
+        std::string hashkey = reply.as_string();
+        while (!checkkey(key, hashkey)) {
             std::cout << "密码错误，请选择 1重新输入密码 2为忘记密码: ";
             int option;
             std::cin >> option;
             if(option==1){
                 std::cout << "请重新输入密码: ";
-                std::cin >> key;
+                key = inkey();
+                std::cout << std::endl;
             }else{
                 forgetkey(server);
                 std::cout << "请重新输入密码: ";
-                std::cin >> key;
+                key = inkey();
+                std::cout << std::endl;
             }
-        }   
+        }
             std::cout << "登录成功" << std::endl;
     }
     void loginwithcode(const std::string&server){
@@ -147,8 +200,8 @@ class verifycode{
             std::cout << "验证码正确" << std::endl;
         auto fut1 = redis_.get(account);
         redis_.sync_commit();
-        std::string truecode = fut1.get().as_string();
-
+        std::string hashcode = fut1.get().as_string();
+        std::string truecode = getstartkey(hashcode);
         sendcom(server, account, "密码", "您的密码是: " + truecode);
         std::cout << "密码已经发到您的邮箱" << std::endl;
     }
@@ -164,18 +217,21 @@ class verifycode{
             return;
         }
         std::cout << "请输入密码:";
-        std::cin >> key;
+        key = inkey();
+        std::cout << std::endl;
         while (reply.as_string() != key) {
             std::cout << "密码错误，请选择 1重新输入密码 2为忘记密码: ";
             int option;
             std::cin >> option;
             if (option == 1) {
                 std::cout << "请重新输入密码: ";
-                std::cin >> key;
+                key = inkey();
+                std::cout << std::endl;
             } else {
                 forgetkey(server);
                 std::cout << "请重新输入密码: ";
-                std::cin >> key;
+                key = inkey();
+                std::cout << std::endl;
             }
         }
         redis_.del({account, account + "1"});

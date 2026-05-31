@@ -271,7 +271,7 @@ bool checkCode(const string& email, const string& inputCode) {
             s1 = reply.as_string();
         }
     });
-
+//redis.get()返回的是cpp_redis自己的futrue类型，拿到reply结果的包装器
     // 必须提交！
     m_redis.sync_commit();
 
